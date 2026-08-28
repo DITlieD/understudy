@@ -9,3 +9,4 @@ vendor/hyperframes
 **/.venv-kokoro
 .thumbnails
 **/.thumbnails
+contest/
