@@ -49,15 +49,17 @@ npm run dev
 npm test
 ```
 
-`npm run dev` starts Vite. Open the origin it prints. The console is `/`. Feature detection is `/probe.html` (also the file `probe.html` at the repo root).
+`npm run dev` starts Vite. Open the origin it prints. The console is `/`. Feature detection is `/probe.html` (`public/probe.html`, also the file `probe.html` at the repo root).
 
 `npm test` runs Vitest (`vitest run`).
 
-`npm run build` typechecks and emits the console from `index.html`. It does not add `probe.html` as a second build entry. Use the dev origin, or open the file, for the probe.
+`npm run build` typechecks and emits the console from `index.html`. Vite copies `public/probe.html` into `dist/probe.html`. Preview with `npm run preview`.
 
 Source: https://github.com/DITlieD/understudy
 
-WebMCP check: Chrome with `chrome://flags/#enable-webmcp-testing`, or ChatGPT's in-app browser. Open `probe.html`. It reports whether `document.modelContext` is present, then tries a no-op `registerTool` named `understudy_probe`. If the object is absent, the triage UI still runs for a human. There is no deployed URL in this README because none is claimed here.
+Live URL (GitHub Pages): https://ditlied.github.io/understudy/
+
+WebMCP check: Chrome with `chrome://flags/#enable-webmcp-testing`, or ChatGPT's in-app browser. Open `/probe.html` on the same origin. It reports whether `document.modelContext` is present, then tries a no-op `registerTool` named `understudy_probe`. If the object is absent, the triage UI still runs for a human.
 
 ## Command catalogue
 
@@ -108,7 +110,7 @@ Chrome character budgets (name 30, parameter description 150, tool description 5
 - Tools are tab-scoped and ephemeral. Persistence in this checkout is IndexedDB in this origin, plus Tool Pack files. No accounts, no multi-user sync.
 - Tool-surface bloat degrades agent selection. The registry refuses a 17th taught tool. Disable frees that host slot until Enable, or until the next load re-registers every stored tool.
 - The console has no conversation thread, no SLA engine, and no related-item graph. That trim is deliberate.
-- There is no live URL claimed here.
+- Live URL: https://ditlied.github.io/understudy/
 
 ## Differentiator
 

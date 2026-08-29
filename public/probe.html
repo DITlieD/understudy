@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Understudy WebMCP probe</title>
+    <style>
+      :root {
+        --ink: #161616;
+        --paper: #fafafa;
+        --line: #c8c8c8;
+        --accent: #153e8a;
+        --present: #0b6b2c;
+        --absent: #9b1c1c;
+      }
+      html {
+        color: var(--ink);
+        background: var(--paper);
+        font: 16px/1.45 system-ui, sans-serif;
+      }
+      body {
+        margin: 0;
+        padding: 1.25rem 1.5rem 2.5rem;
+      }
+      main {
+        max-width: 40rem;
+      }
+      h1 {
+        margin: 0 0 0.5rem;
+        font-size: 1.5rem;
+        font-weight: 650;
+        color: var(--accent);
+      }
+      h2 {
+        margin: 1.5rem 0 0.5rem;
+        font-size: 1rem;
+        font-weight: 650;
+      }
+      p,
+      li {
+        margin: 0 0 0.75rem;
+      }
+      code {
+        font-family: ui-monospace, monospace;
+        font-size: 0.9em;
+      }
+      dl {
+        margin: 0;
+        border: 1px solid var(--line);
+      }
+      div.row {
+        display: grid;
+        grid-template-columns: 12rem 1fr;
+        gap: 0.75rem;
+        padding: 0.55rem 0.75rem;
+        border-top: 1px solid var(--line);
+      }
+      div.row:first-child {
+        border-top: 0;
+      }
+      dt {
+        margin: 0;
+        font-weight: 650;
+      }
+      dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      .present {
+        color: var(--present);
+        font-weight: 650;
+      }
+      .absent {
+        color: var(--absent);
+        font-weight: 650;
+      }
+      #verdict {
+        margin: 1rem 0 0;
+        font-size: 1.05rem;
+        font-weight: 650;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Understudy WebMCP probe</h1>
+      <p>
+        Day-1 feature detection for <code>document.modelContext</code>. This page
+        uses that API and ordinary DOM only. If the object is present, it registers
+        a no-op tool and prints the result.
+      </p>
+      <h2>Result</h2>
+      <dl id="rows"></dl>
+      <p id="verdict"></p>
+      <h2>How to read this</h2>
+      <ul>
+        <li>
+          PRESENT plus a successful <code>registerTool</code> means this browser
+          can host Understudy tools.
+        </li>
+        <li>
+          ABSENT means turn on
+          <code>chrome://flags/#enable-webmcp-testing</code>, or open this file
+          in ChatGPT's in-app browser. Humans can still use the app with no agent.
+        </li>
+        <li>
+          This probe registers only on <code>document.modelContext</code>. It does
+          not call the removed <code>navigator.modelContext</code> getter. That
+          getter is reported as a side reading.
+        </li>
+      </ul>
+    </main>
+    <script>
+      (function () {
+        var rows = document.getElementById("rows");
+        var verdict = document.getElementById("verdict");
+
+        function addRow(label, value, kind) {
+          var wrap = document.createElement("div");
+          wrap.className = "row";
+          var dt = document.createElement("dt");
+          dt.textContent = label;
+          var dd = document.createElement("dd");
+          if (kind) {
+            dd.className = kind;
+          }
+          dd.textContent = value;
+          wrap.appendChild(dt);
+          wrap.appendChild(dd);
+          rows.appendChild(wrap);
+        }
+
+        function kindFor(present) {
+          return present ? "present" : "absent";
+        }
+
+        function wordFor(present) {
+          return present ? "PRESENT" : "ABSENT";
+        }
+
+        function summarizeError(err) {
+          if (err && typeof err === "object") {
+            var name = typeof err.name === "string" ? err.name : "Error";
+            var message = typeof err.message === "string" ? err.message : String(err);
+            return name + ": " + message;
+          }
+          return String(err);
+        }
+
+        var ctx = document.modelContext;
+        var hasCtx = ctx != null && typeof ctx === "object";
+        var hasRegister = hasCtx && typeof ctx.registerTool === "function";
+        var navCtx = navigator.modelContext;
+        var hasNav = navCtx != null && typeof navCtx === "object";
+
+        addRow("document.modelContext", wordFor(hasCtx), kindFor(hasCtx));
+        addRow(
+          "registerTool",
+          wordFor(hasRegister),
+          kindFor(hasRegister)
+        );
+        addRow(
+          "navigator.modelContext (not used)",
+          wordFor(hasNav),
+          kindFor(hasNav)
+        );
+        addRow(
+          "secure context",
+          wordFor(window.isSecureContext === true),
+          kindFor(window.isSecureContext === true)
+        );
+        addRow("user agent", navigator.userAgent || "(empty)");
+
+        if (!hasCtx) {
+          addRow("registerTool call", "skipped (document.modelContext absent)", "absent");
+          verdict.textContent =
+            "WebMCP is absent on this page. Understudy cannot register tools here.";
+          verdict.className = "absent";
+          return;
+        }
+
+        if (!hasRegister) {
+          addRow(
+            "registerTool call",
+            "skipped (registerTool is not a function)",
+            "absent"
+          );
+          verdict.textContent =
+            "document.modelContext is present, but registerTool is missing. No tool was registered.";
+          verdict.className = "absent";
+          return;
+        }
+
+        var tool = {
+          name: "understudy_probe",
+          description:
+            "No-op probe. Confirms registerTool accepts a tool in this browser.",
+          inputSchema: { type: "object", properties: {} },
+          annotations: { readOnlyHint: true, untrustedContentHint: false },
+          execute: function () {
+            return "understudy probe: no-op";
+          },
+        };
+        var controller = new AbortController();
+
+        Promise.resolve(ctx.registerTool(tool, { signal: controller.signal }))
+          .then(function () {
+            addRow("registerTool call", "resolved", "present");
+            addRow(
+              "probe tool",
+              "understudy_probe left registered until reload (tab-scoped)",
+              "present"
+            );
+            verdict.textContent =
+              "document.modelContext is present and registerTool accepted a no-op tool.";
+            verdict.className = "present";
+
+            if (typeof ctx.getTools !== "function") {
+              addRow("getTools", "ABSENT (register already succeeded)", "present");
+              return;
+            }
+            return Promise.resolve(ctx.getTools()).then(
+              function (list) {
+                var names = [];
+                if (Array.isArray(list)) {
+                  for (var i = 0; i < list.length; i++) {
+                    var item = list[i];
+                    if (item && typeof item.name === "string") {
+                      names.push(item.name);
+                    }
+                  }
+                }
+                var found = names.indexOf("understudy_probe") !== -1;
+                addRow(
+                  "getTools",
+                  found
+                    ? "understudy_probe is in the tool list"
+                    : "returned, but understudy_probe was not listed",
+                  found ? "present" : "absent"
+                );
+              },
+              function (err) {
+                addRow(
+                  "getTools",
+                  "threw after register: " + summarizeError(err),
+                  "absent"
+                );
+              }
+            );
+          })
+          .catch(function (err) {
+            addRow("registerTool call", "threw: " + summarizeError(err), "absent");
+            verdict.textContent =
+              "document.modelContext is present, but registerTool rejected the no-op tool.";
+            verdict.className = "absent";
+          });
+      })();
+    </script>
+  </body>
+</html>
